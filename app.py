@@ -2,8 +2,7 @@
 =============================================================================
 🏛️ NATIONAL TREASURY ICT ASSET INVENTORY MANAGEMENT SYSTEM
 Features:
-- Pure MySQL Database Backend (user: root, password: root123, db: treasury_db)
-- Deployment-ready (Supports DATABASE_URL / PORT environment variables)
+- Pure MySQL Database Backend locally, automatic SQLite on Render cloud
 - Layout: Model -> Brand -> Serial Number -> Category -> Status -> Assigned To
 - Add, Edit (Modal), and Delete Assets
 - Single Search Bar with "Product Not Available" Banner
@@ -22,18 +21,24 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'national_treasury_secret_key_2026')
 
 # =============================================================================
-# 💾 DATABASE CONFIGURATION (Supports Local MySQL and Cloud DATABASE_URL)
+# 💾 DATABASE CONFIGURATION (Cloud-Aware)
 # =============================================================================
 MYSQL_USER = os.environ.get('DB_USER', 'root')
 MYSQL_PASSWORD = os.environ.get('DB_PASSWORD', 'root123')
 MYSQL_HOST = os.environ.get('DB_HOST', '127.0.0.1:3306')
 MYSQL_DB = os.environ.get('DB_NAME', 'treasury_db')
 
-default_uri = f'mysql+mysqlconnector://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}/{MYSQL_DB}?ssl_disabled=True'
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', default_uri)
+# If running on Render without an external MySQL database, use SQLite
+if os.environ.get('RENDER') and not os.environ.get('DATABASE_URL'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///inventory.db'
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
+        'DATABASE_URL',
+        f'mysql+mysqlconnector://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}/{MYSQL_DB}?ssl_disabled=True'
+    )
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Engine options for local and cloud compatibility
 if "mysql" in app.config['SQLALCHEMY_DATABASE_URI']:
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
         "connect_args": {"ssl_disabled": True}
@@ -257,9 +262,6 @@ def import_csv():
         flash("CSV data imported successfully.", "success")
     return redirect(url_for('index'))
 
-# =============================================================================
-# 🚀 APP ENTRY POINT
-# =============================================================================
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
