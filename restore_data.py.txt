@@ -1,0 +1,74 @@
+import sqlite3
+import mysql.connector
+import os
+
+print("🔍 Searching for your saved SQLite inventory data...")
+
+# Check possible locations of SQLite database
+sqlite_paths = ["inventory.db", "instance/inventory.db"]
+found_db = None
+for p in sqlite_paths:
+    if os.path.exists(p):
+        found_db = p
+        break
+
+if not found_db:
+    print("❌ Could not find inventory.db file in this folder.")
+    exit()
+
+print(f"📁 Found database at: {found_db}")
+
+# Read assets from SQLite
+sqlite_conn = sqlite3.connect(found_db)
+s_cur = sqlite_conn.cursor()
+
+# Get column names
+s_cur.execute("PRAGMA table_info(asset);")
+cols = [col[1] for col in s_cur.fetchall()]
+print(f"Columns found: {cols}")
+
+s_cur.execute("SELECT * FROM asset;")
+rows = s_cur.fetchall()
+print(f"📊 Found {len(rows)} asset(s) to restore!")
+
+if len(rows) == 0:
+    print("No rows found in this SQLite file.")
+    exit()
+
+# Connect to MySQL (with root123)
+try:
+    m_conn = mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="root123",
+        database="treasury_db",
+        ssl_disabled=True
+    )
+    m_cur = m_conn.cursor()
+
+    count = 0
+    for r in rows:
+        row_dict = dict(zip(cols, r))
+        sn = row_dict.get('serial_number')
+        model = row_dict.get('model', '')
+        brand = row_dict.get('brand', '')
+        cat = row_dict.get('category', '')
+        status = row_dict.get('status', 'In Store')
+        assigned = row_dict.get('assigned_to', 'Unassigned')
+
+        # Insert into MySQL (ignore if already exists)
+        sql = """
+            INSERT INTO asset (model, brand, serial_number, category, status, assigned_to)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE model=%s, brand=%s, category=%s, status=%s, assigned_to=%s
+        """
+        m_cur.execute(sql, (model, brand, sn, cat, status, assigned, model, brand, cat, status, assigned))
+        count += 1
+
+    m_conn.commit()
+    m_cur.close()
+    m_conn.close()
+    print(f"\n🎉 SUCCESS! Restored {count} asset(s) into your MySQL database!")
+
+except Exception as e:
+    print(f"\n❌ Error inserting into MySQL: {e}")

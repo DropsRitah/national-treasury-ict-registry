@@ -1,0 +1,6 @@
+{
+  "name": "National Treasury ICT Asset Registry",
+  "description": "Official ICT Asset Management System with password formatting policy enforcement, product availability search notifications, and SQLite/MySQL migration support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
